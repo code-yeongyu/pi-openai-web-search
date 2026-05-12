@@ -1,0 +1,61 @@
+{
+	"name": "pi-openai-web-search",
+	"version": "0.1.0",
+	"description": "OpenAI Responses native web search policy extension for the pi coding agent. Ensures native web_search tools are present on openai-responses and azure-openai-responses payloads and appends web search guidance to the system prompt.",
+	"type": "module",
+	"license": "MIT",
+	"homepage": "https://github.com/code-yeongyu/pi-openai-web-search",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/code-yeongyu/pi-openai-web-search.git"
+	},
+	"bugs": {
+		"url": "https://github.com/code-yeongyu/pi-openai-web-search/issues"
+	},
+	"keywords": [
+		"pi",
+		"pi-mono",
+		"pi-coding-agent",
+		"pi-extension",
+		"coding-agent",
+		"openai",
+		"web-search",
+		"responses-api",
+		"typescript"
+	],
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"files": [
+		"src",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "npm run typecheck",
+		"test": "vitest --run",
+		"test:watch": "vitest",
+		"typecheck": "tsgo --noEmit",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"check": "tsgo --noEmit && biome check ."
+	},
+	"peerDependencies": {
+		"@mariozechner/pi-ai": "*",
+		"@mariozechner/pi-coding-agent": "*"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.4.13",
+		"@types/node": "^25.6.0",
+		"@typescript/native-preview": "^7.0.0-dev.20260501.1",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.5"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

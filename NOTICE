@@ -1,0 +1,4 @@
+pi-openai-web-search
+
+This package targets the pi coding agent extension API by Mario Zechner and ports the senpi-mono builtin
+openai-web-search extension into a standalone pi extension package.
