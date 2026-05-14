@@ -78,6 +78,37 @@ describe("openai-web-search builtin extension", () => {
 		expect(result.tools).toContainEqual({ type: "web_search" });
 	});
 
+	it("#given OpenAI Responses payload #when native web_search is injected #then source include is requested", () => {
+		// given
+		const payload = {
+			tools: [{ name: "other_tool" }],
+		};
+
+		// when
+		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+			include: string[];
+		};
+
+		// then
+		expect(result.include).toContain("web_search_call.action.sources");
+	});
+
+	it("#given existing include values #when native web_search is preserved #then source include is appended once", () => {
+		// given
+		const payload = {
+			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+			tools: [{ type: "web_search" }],
+		};
+
+		// when
+		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+			include: string[];
+		};
+
+		// then
+		expect(result.include).toEqual(["reasoning.encrypted_content", "web_search_call.action.sources"]);
+	});
+
 	it("injects native web_search when on azure-openai-responses and none exists", () => {
 		const payload = {
 			tools: [{ name: "other_tool" }],
