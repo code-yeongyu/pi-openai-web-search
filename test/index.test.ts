@@ -42,7 +42,7 @@ describe("openai-web-search builtin extension", () => {
 			},
 		);
 
-		expect(setStatus).toHaveBeenCalledWith("pi-openai-web-search", "web_search native");
+		expect(setStatus).toHaveBeenCalledWith("pi-openai-web-search", undefined);
 		expect(setWidget).toHaveBeenCalledWith(
 			"pi-openai-web-search",
 			["Native Web Search", "OpenAI Responses · web_search"],
