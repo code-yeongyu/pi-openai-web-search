@@ -43,11 +43,7 @@ describe("openai-web-search builtin extension", () => {
 		);
 
 		expect(setStatus).toHaveBeenCalledWith("pi-openai-web-search", undefined);
-		expect(setWidget).toHaveBeenCalledWith(
-			"pi-openai-web-search",
-			["Native Web Search", "OpenAI Responses · web_search"],
-			{ placement: "belowEditor" },
-		);
+		expect(setWidget).toHaveBeenCalledWith("pi-openai-web-search", undefined);
 	});
 
 	it("is a no-op when model api is openai-completions", () => {
