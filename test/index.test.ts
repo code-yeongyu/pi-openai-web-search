@@ -131,7 +131,7 @@ describe("openai-web-search builtin extension", () => {
 		};
 
 		const webSearchTools = result.tools.filter(
-			(tool) => tool.type === "web_search" || tool.type === "web_search_preview",
+			(tool) => tool["type"] === "web_search" || tool["type"] === "web_search_preview",
 		);
 		expect(webSearchTools).toHaveLength(1);
 		expect(webSearchTools[0]).toEqual({ type: "web_search_preview" });

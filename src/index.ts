@@ -47,7 +47,7 @@ function sanitizeTools(tools: unknown[]): ToolDefinition[] {
 			continue;
 		}
 
-		const shouldStripFunctionVariant = tool.name === "web_search" && !isNativeOpenAiWebSearchType(tool.type);
+		const shouldStripFunctionVariant = tool["name"] === "web_search" && !isNativeOpenAiWebSearchType(tool["type"]);
 		if (!shouldStripFunctionVariant) {
 			sanitized.push(tool);
 		}
@@ -57,8 +57,9 @@ function sanitizeTools(tools: unknown[]): ToolDefinition[] {
 }
 
 function includeWebSearchSources(payload: Record<string, unknown>): string[] {
-	const include = Array.isArray(payload.include)
-		? payload.include.filter((value): value is string => typeof value === "string")
+	const payloadInclude = payload["include"];
+	const include = Array.isArray(payloadInclude)
+		? payloadInclude.filter((value): value is string => typeof value === "string")
 		: [];
 	return include.includes(WEB_SEARCH_SOURCES_INCLUDE) ? include : [...include, WEB_SEARCH_SOURCES_INCLUDE];
 }
@@ -76,9 +77,10 @@ export function addOpenAiWebSearchToPayload(api: Api | undefined, payload: unkno
 		return payload;
 	}
 
-	const tools = Array.isArray(payload.tools) ? payload.tools : [];
+	const payloadTools = payload["tools"];
+	const tools: unknown[] = Array.isArray(payloadTools) ? payloadTools : [];
 	const sanitizedTools = sanitizeTools(tools);
-	const hasNativeWebSearch = sanitizedTools.some((tool) => isNativeOpenAiWebSearchType(tool.type));
+	const hasNativeWebSearch = sanitizedTools.some((tool) => isNativeOpenAiWebSearchType(tool["type"]));
 
 	if (!hasNativeWebSearch) {
 		// Verified in openai/openai-node src/resources/responses/responses.ts (2026-05-07):
