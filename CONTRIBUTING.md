@@ -5,11 +5,13 @@ Keep changes small, targeted, and tested.
 Before opening a PR:
 
 ```bash
-npm install
-npm run check
-npm test
+bun install
+bun run check
+bun test
 npm pack --dry-run
 ```
+
+npm consumers can use `npm ci` and `npm test` instead of Bun.
 
 If behavior changes, update `README.md`, `CHANGELOG.md`, and tests.
 

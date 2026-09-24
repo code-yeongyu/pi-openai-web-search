@@ -1,8 +1,29 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import openaiWebSearchExtension, { addOpenAiWebSearchToPayload, isOpenaiWebSearchEnabled } from "../src/index.js";
+import openaiWebSearchExtension, {
+	addOpenAiWebSearchToPayload,
+	isOpenaiWebSearchEnabled,
+	supportsNativeOpenAiWebSearch,
+} from "../src/index.js";
 
 const ENABLE_ENV = "PI_OPENAI_WEB_SEARCH";
+const OPENAI_RESPONSES_MODEL = {
+	api: "openai-responses",
+	baseUrl: "https://api.openai.com/v1",
+} as const;
+const AZURE_OPENAI_RESPONSES_MODEL = {
+	api: "azure-openai-responses",
+	baseUrl: "https://example.openai.azure.com/openai",
+} as const;
+const PROXY_OPENAI_RESPONSES_MODEL = {
+	api: "openai-responses",
+	baseUrl: "https://quotio.example/v1",
+} as const;
+const PROXY_OPENAI_RESPONSES_WEB_SEARCH_MODEL = {
+	api: "openai-responses",
+	baseUrl: "https://quotio.example/v1",
+	compat: { supportsWebSearchPreview: true },
+} as const;
 
 type TestUi = {
 	setStatus: (key: string, value: string | undefined) => void;
@@ -15,7 +36,7 @@ afterEach(() => {
 });
 
 describe("openai-web-search builtin extension", () => {
-	it("shows native web search widget for OpenAI Responses sessions", async () => {
+	it("clears native web search UI keys for OpenAI Responses sessions", async () => {
 		type SessionStartHandler = (
 			event: object,
 			ctx: { model?: { api?: string }; hasUI?: boolean; ui: TestUi },
@@ -29,6 +50,7 @@ describe("openai-web-search builtin extension", () => {
 				if (eventName === "session_start") {
 					sessionStartHandler = handler as SessionStartHandler;
 				}
+				return () => undefined;
 			},
 		} satisfies Pick<ExtensionAPI, "on">;
 
@@ -66,16 +88,78 @@ describe("openai-web-search builtin extension", () => {
 		expect(result).toBe(payload);
 	});
 
-	it("injects native web_search when on openai-responses and none exists", () => {
+	it("strips OpenAI native web_search_preview when api is anthropic-messages", () => {
+		const payload = {
+			tools: [{ name: "other_tool" }, { type: "web_search_preview" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload("anthropic-messages", payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ name: "other_tool" }]);
+	});
+
+	it("strips versioned OpenAI web_search_preview variants when api is anthropic-messages", () => {
+		const payload = {
+			tools: [{ type: "web_search_preview_2025_03_11" }, { name: "keeper" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload("anthropic-messages", payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ name: "keeper" }]);
+	});
+
+	it("strips OpenAI native web_search_preview when api is openai-completions", () => {
+		const payload = {
+			tools: [{ type: "web_search_preview" }, { name: "keeper" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload("openai-completions", payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ name: "keeper" }]);
+	});
+
+	it("strips OpenAI native web_search_preview even when the extension is disabled", () => {
+		process.env[ENABLE_ENV] = "off";
+		const payload = {
+			tools: [{ type: "web_search_preview" }, { name: "keeper" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload("anthropic-messages", payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ name: "keeper" }]);
+	});
+
+	it("leaves Anthropic native web_search_* tools untouched on anthropic-messages payloads", () => {
+		const payload = {
+			tools: [
+				{ type: "web_search_20250305", name: "web_search", max_uses: 5 },
+				{ type: "web_fetch_20260309", name: "web_fetch", max_uses: 5 },
+			],
+		};
+
+		const result = addOpenAiWebSearchToPayload("anthropic-messages", payload);
+
+		expect(result).toBe(payload);
+	});
+
+	it("injects native web_search_preview when on openai-responses and none exists", () => {
 		const payload = {
 			tools: [{ name: "other_tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			tools: Array<Record<string, unknown>>;
 		};
 
-		expect(result.tools).toContainEqual({ type: "web_search" });
+		expect(result.tools).toContainEqual({ type: "web_search_preview" });
 	});
 
 	it("#given OpenAI Responses payload #when native web_search is injected #then source include is requested", () => {
@@ -85,7 +169,7 @@ describe("openai-web-search builtin extension", () => {
 		};
 
 		// when
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			include: string[];
 		};
 
@@ -97,11 +181,11 @@ describe("openai-web-search builtin extension", () => {
 		// given
 		const payload = {
 			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
-			tools: [{ type: "web_search" }],
+			tools: [{ type: "web_search_preview" }],
 		};
 
 		// when
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			include: string[];
 		};
 
@@ -109,16 +193,16 @@ describe("openai-web-search builtin extension", () => {
 		expect(result.include).toEqual(["reasoning.encrypted_content", "web_search_call.action.sources"]);
 	});
 
-	it("injects native web_search when on azure-openai-responses and none exists", () => {
+	it("injects native web_search_preview when on azure-openai-responses and none exists", () => {
 		const payload = {
 			tools: [{ name: "other_tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("azure-openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(AZURE_OPENAI_RESPONSES_MODEL, payload) as {
 			tools: Array<Record<string, unknown>>;
 		};
 
-		expect(result.tools).toContainEqual({ type: "web_search" });
+		expect(result.tools).toContainEqual({ type: "web_search_preview" });
 	});
 
 	it("preserves caller-supplied web_search_preview and does not duplicate", () => {
@@ -126,12 +210,12 @@ describe("openai-web-search builtin extension", () => {
 			tools: [{ type: "web_search_preview" }, { name: "other_tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			tools: Array<Record<string, unknown>>;
 		};
 
 		const webSearchTools = result.tools.filter(
-			(tool) => tool["type"] === "web_search" || tool["type"] === "web_search_preview",
+			(tool) => tool["type"] === "web_search_preview" || tool["type"] === "web_search_preview_2025_03_11",
 		);
 		expect(webSearchTools).toHaveLength(1);
 		expect(webSearchTools[0]).toEqual({ type: "web_search_preview" });
@@ -142,12 +226,63 @@ describe("openai-web-search builtin extension", () => {
 			tools: [{ name: "web_search", description: "pi-websearch function" }, { name: "other_tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			tools: Array<Record<string, unknown>>;
 		};
 
 		expect(result.tools).not.toContainEqual({ name: "web_search", description: "pi-websearch function" });
-		expect(result.tools).toContainEqual({ type: "web_search" });
+		expect(result.tools).toContainEqual({ type: "web_search_preview" });
+	});
+
+	it("strips Anthropic native web tool definitions before sending OpenAI Responses payloads", () => {
+		const payload = {
+			tools: [
+				{ type: "function", name: "other_tool" },
+				{ type: "web_search_20250305", name: "web_search", max_uses: 5 },
+				{ type: "web_fetch_20260309", name: "web_fetch", max_uses: 5 },
+			],
+		};
+
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ type: "function", name: "other_tool" }, { type: "web_search_preview" }]);
+	});
+
+	it("preserves Pi webfetch function tools while stripping Anthropic native web_fetch", () => {
+		const payload = {
+			tools: [
+				{ name: "webfetch", description: "Pi webfetch function tool" },
+				{ type: "web_fetch_20260309", name: "web_fetch", max_uses: 5 },
+			],
+		};
+
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([
+			{ name: "webfetch", description: "Pi webfetch function tool" },
+			{ type: "web_search_preview" },
+		]);
+	});
+
+	it("still strips Anthropic native web tool definitions when OpenAI web search injection is disabled", () => {
+		process.env[ENABLE_ENV] = "off";
+		const payload = {
+			tools: [
+				{ type: "function", name: "other_tool" },
+				{ type: "web_search_20250305", name: "web_search", max_uses: 5 },
+				{ type: "web_fetch_20260309", name: "web_fetch", max_uses: 5 },
+			],
+		};
+
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ type: "function", name: "other_tool" }]);
 	});
 
 	it("does not strip function-tool web_search when api is not Responses", () => {
@@ -166,7 +301,7 @@ describe("openai-web-search builtin extension", () => {
 			tools: [{ name: "web_search", description: "function tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload);
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload);
 
 		expect(result).toBe(payload);
 	});
@@ -176,11 +311,47 @@ describe("openai-web-search builtin extension", () => {
 			tools: [{ name: "other_tool" }],
 		};
 
-		const result = addOpenAiWebSearchToPayload("openai-responses", payload) as {
+		const result = addOpenAiWebSearchToPayload(OPENAI_RESPONSES_MODEL, payload) as {
 			tools: Array<Record<string, unknown>>;
 		};
 
-		expect(result.tools).toContainEqual({ type: "web_search" });
+		expect(result.tools).toContainEqual({ type: "web_search_preview" });
+	});
+
+	it("strips native web_search_preview for custom OpenAI Responses endpoints by default", () => {
+		const payload = {
+			include: ["reasoning.encrypted_content", "web_search_call.action.sources"],
+			tool_choice: { type: "web_search_preview" },
+			tools: [{ type: "web_search_preview" }, { name: "web_search", description: "function tool" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload(PROXY_OPENAI_RESPONSES_MODEL, payload) as {
+			include: string[];
+			tool_choice?: unknown;
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toEqual([{ name: "web_search", description: "function tool" }]);
+		expect(result.include).toEqual(["reasoning.encrypted_content"]);
+		expect(result.tool_choice).toBeUndefined();
+	});
+
+	it("preserves native web_search_preview for custom OpenAI Responses endpoints that opt in", () => {
+		const payload = {
+			tools: [{ name: "other_tool" }],
+		};
+
+		const result = addOpenAiWebSearchToPayload(PROXY_OPENAI_RESPONSES_WEB_SEARCH_MODEL, payload) as {
+			tools: Array<Record<string, unknown>>;
+		};
+
+		expect(result.tools).toContainEqual({ type: "web_search_preview" });
+	});
+
+	it("treats string openai-responses targets as the native OpenAI endpoint", () => {
+		expect(supportsNativeOpenAiWebSearch("openai-responses")).toBe(true);
+		expect(supportsNativeOpenAiWebSearch("azure-openai-responses")).toBe(true);
+		expect(supportsNativeOpenAiWebSearch("anthropic-messages")).toBe(false);
 	});
 });
 
@@ -211,7 +382,7 @@ describe("openai-web-search before_agent_start", () => {
 
 		type BeforeAgentStartHandler = (
 			event: { systemPrompt: string },
-			ctx: { model?: { api?: string } },
+			ctx: { model?: { api?: string; baseUrl?: string } },
 		) => Promise<{ systemPrompt: string } | undefined>;
 
 		let beforeAgentStartHandler: BeforeAgentStartHandler | undefined;
@@ -220,6 +391,7 @@ describe("openai-web-search before_agent_start", () => {
 				if (eventName === "before_agent_start") {
 					beforeAgentStartHandler = handler as BeforeAgentStartHandler;
 				}
+				return () => undefined;
 			},
 		} satisfies Pick<ExtensionAPI, "on">;
 
@@ -228,9 +400,35 @@ describe("openai-web-search before_agent_start", () => {
 
 		const result = await beforeAgentStartHandler?.(
 			{ systemPrompt: "system" },
-			{ model: { api: "openai-responses" } },
+			{ model: { api: "openai-responses", baseUrl: "https://api.openai.com/v1" } },
 		);
 
 		expect(result).toBeUndefined();
+	});
+
+	it("appends system prompt for native OpenAI Responses sessions", async () => {
+		type BeforeAgentStartHandler = (
+			event: { systemPrompt: string },
+			ctx: { model?: { api?: string; baseUrl?: string } },
+		) => Promise<{ systemPrompt: string } | undefined>;
+
+		let beforeAgentStartHandler: BeforeAgentStartHandler | undefined;
+		const pi = {
+			on(eventName: string, handler: unknown) {
+				if (eventName === "before_agent_start") {
+					beforeAgentStartHandler = handler as BeforeAgentStartHandler;
+				}
+				return () => undefined;
+			},
+		} satisfies Pick<ExtensionAPI, "on">;
+
+		openaiWebSearchExtension(pi as ExtensionAPI);
+
+		const result = await beforeAgentStartHandler?.(
+			{ systemPrompt: "system" },
+			{ model: { api: "openai-responses", baseUrl: "https://api.openai.com/v1" } },
+		);
+
+		expect(result?.systemPrompt).toContain("Native web search is available");
 	});
 });

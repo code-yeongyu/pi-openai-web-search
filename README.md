@@ -8,16 +8,17 @@ This package is the standalone extraction of senpi's former builtin `openai-web-
 
 ## Behavior
 
-The extension does not register a new local tool. It intercepts OpenAI Responses-family requests and ensures native web search is available by injecting `{ type: "web_search" }` when absent.
+The extension does not register a new local tool. It intercepts OpenAI Responses-family requests and ensures native web search is available by injecting `{ type: "web_search_preview" }` when the endpoint supports it.
 
 | Case | Result |
 |------|--------|
-| API is `openai-responses` or `azure-openai-responses` and no native web search tool exists | injects `{ type: "web_search" }` |
-| Existing native `web_search` or `web_search_preview` tool exists | preserves it (no duplication) |
-| Function variant named `web_search` is present | strips function variant and keeps native variant |
-| Non-Responses API payload | leaves payload unchanged |
+| API is `openai-responses` on `api.openai.com`, or `azure-openai-responses`, or `compat.supportsWebSearchPreview`, and no native preview tool exists | injects `{ type: "web_search_preview" }` |
+| Existing native `web_search_preview` / `web_search_preview_*` tool exists | preserves it (no duplication) |
+| Function variant named `web_search`, GA `{ type: "web_search" }`, or Anthropic `web_search_*` / `web_fetch_*` is present on a Responses payload | strips those entries and keeps/injects the native preview variant |
+| Custom `openai-responses` endpoint without `compat.supportsWebSearchPreview` | strips native preview tools, source `include`, and preview `tool_choice` |
+| Non-Responses API payload | strips leaked OpenAI native preview tools; leaves other tools unchanged |
 
-It also appends a system-prompt section for Responses sessions indicating native `web_search` availability.
+It also appends a system-prompt section for supported Responses sessions indicating native web search availability.
 
 ## Installation
 
@@ -32,7 +33,7 @@ pi install git:github.com/code-yeongyu/pi-openai-web-search
 
 # Manual placement
 git clone https://github.com/code-yeongyu/pi-openai-web-search ~/.pi/agent/extensions/pi-openai-web-search
-cd ~/.pi/agent/extensions/pi-openai-web-search && npm install
+cd ~/.pi/agent/extensions/pi-openai-web-search && bun install
 
 # Dev / one-shot test
 pi -e /path/to/pi-openai-web-search/src/index.ts
@@ -43,14 +44,14 @@ After installation, restart pi or run `/reload` inside an interactive session.
 ## Development
 
 ```bash
-npm install
-npm test
-npm run typecheck
-npm run check
+bun install
+bun test
+bun run typecheck
+bun run check
 pi -e ./src/index.ts
 ```
 
-The test suite uses vitest. TypeScript is strict, Node-only, and uses ESM imports with `.js` suffixes.
+npm consumers can use `npm ci` and `npm test`. The test suite uses vitest. TypeScript is strict, Node-only, and uses ESM imports with `.js` suffixes.
 
 ## Origin
 
